@@ -1,0 +1,24 @@
+# InterRetro 전용 conda env(kbp-interretro) 설치 기록
+# kbp-backend의 requirements.txt(torch==1.9.0/dgl==0.9.1)와 충돌하기 때문에
+# 별도 env에 아래 순서로 설치했다. pip install -r로 한 번에 재현되지 않는다
+# (torch/dgl이 각자 다른 wheel index를 써야 해서 --index-url/-f가 스텝마다 다름).
+#
+# conda create -n kbp-interretro python=3.9 -y
+# conda activate kbp-interretro
+#
+# pip install torch==2.2.1 --index-url https://download.pytorch.org/whl/cpu
+# pip install dgl==2.2.1 -f https://data.dgl.ai/wheels/torch-2.2/repo.html
+# pip install dgllife --no-deps          # dgllife 0.3.2, dgl 재설치 방지 위해 --no-deps
+# pip install hyperopt scikit-learn rdkit rdkit_pypi rdchiral==1.1.0 \
+#             rxnmapper==0.4.0 anytree joblib graphviz networkx \
+#             fastapi==0.104.1 "uvicorn[standard]==0.24.0" pydantic==2.5.0 \
+#             pydantic-settings==2.1.0 httpx==0.25.2 aiofiles==23.2.1 \
+#             python-dotenv==1.0.0 python-multipart==0.0.6 slowapi==0.1.9
+# pip install "numpy<2"                  # torch==2.2.1 바이너리가 numpy 1.x 전용
+# pip install "torchdata==0.7.1"         # dgl 2.x의 graphbolt가 torchdata.datapipes를
+#                                         # 요구하는데 최신 torchdata(>=0.10)에서 제거됨
+#
+# cd ../retro_star
+# pip install -e ./retro_star/packages/mlp_retrosyn --no-deps
+# pip install -e ./retro_star/packages/rdchiral --no-deps
+# pip install -e . --no-deps

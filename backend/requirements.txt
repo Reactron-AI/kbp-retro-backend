@@ -1,0 +1,54 @@
+# FastAPI Backend Requirements
+# Python 3.7+
+# Note: 이 프로젝트는 기존 retro_star 환경을 상속받음
+# 따라서 다음을 미리 설치해야 함:
+#   pip install -e ../retro_star/packages/mlp_retrosyn
+#   pip install -e ../retro_star/packages/rdchiral
+#   pip install -e ../retro_star
+#   pip install -e ../chemprop
+
+# ── Web Framework ────────────────────────────
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# ── Async Support ─────────────────────────────
+httpx==0.25.2
+aiofiles==23.2.1
+
+# ── Core Retro* Dependencies ──────────────────
+# (Already installed via retro_star package)
+torch==1.9.0
+rdkit>=2021.03.1
+networkx>=2.6
+pandas>=1.1.0
+tqdm>=4.62.0
+graphviz>=0.17
+# graphviz 파이썬 패키지는 'dot' 바이너리를 따로 요구함. sudo 없는 서버에서는:
+#   conda install -c conda-forge graphviz
+
+# ── LocalRetro (PLANNER_MODEL=localretro) ─────
+# dgl 2.x/torchdata 최신판은 torch==1.9.0과 바이너리가 안 맞아 깨짐(graphbolt .so
+# 없음). 검증된 조합: dgl==0.9.1 + dgllife==0.2.8 (torch는 그대로 1.9.0 유지).
+dgl==0.9.1
+dgllife==0.2.8
+
+# ── Advanced ML (from retro_star) ─────────────
+# Uncomment if not already installed
+# umap-learn>=0.5.3
+# torch-geometric>=2.0.0
+# pytorch-lightning>=1.5.0
+# more-itertools>=8.12.0
+
+# ── Utilities ─────────────────────────────────
+python-dotenv==1.0.0
+python-multipart==0.0.6
+
+# ── Security (public exposure) ────────────────
+slowapi==0.1.9
+
+# ── Development & Monitoring ──────────────────
+pytest==7.4.3
+pytest-asyncio==0.21.1
+gunicorn==21.2.0  # Production server
