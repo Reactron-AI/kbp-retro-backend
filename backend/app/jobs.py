@@ -36,12 +36,24 @@ def create_job(target_mol: str, params: Dict[str, Any]) -> str:
         'finished_at': None,
         'result': None,
         'error': None,
+        'progress': None,
     }
     return job_id
 
 
 def get_job(job_id: str) -> Optional[Dict[str, Any]]:
     return _jobs.get(job_id)
+
+
+def update_progress(job_id: str, routes_found: int, max_routes: int) -> None:
+    """collect_unique_depth0_routes()의 progress_callback에서 호출된다.
+    확보한 unique route 수 / 목표 route 수 기준 근사 진행률 — job이 이미
+    끝났거나(다른 스레드가 finished_at을 찍은 뒤) 사라졌을 수 있으므로
+    조용히 무시한다."""
+    job = _jobs.get(job_id)
+    if job is None:
+        return
+    job['progress'] = {'routes_found': routes_found, 'max_routes': max_routes}
 
 
 def submit_job(job_id: str, run_fn: Callable[..., Any], /, *args, **kwargs) -> None:

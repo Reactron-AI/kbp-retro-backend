@@ -35,18 +35,15 @@ fi
 # 로그 디렉토리 생성
 mkdir -p ./logs
 
-# Gunicorn 실행
-echo "🚀 Starting production server with Gunicorn..."
+# 단일 uvicorn 프로세스로 직접 실행 (gunicorn 미사용)
+echo "🚀 Starting production server with Uvicorn..."
 
-# workers=1 필수: planner 모델과 job 상태가 프로세스 메모리에만 있어서,
-# 워커가 여러 개면 각자 모델을 따로 로드하고(메모리/시간 낭비) job_id도
-# 등록한 워커에서만 조회 가능해짐(로드밸런서가 다른 워커로 보내면 404).
-gunicorn \
-    --workers 1 \
-    --worker-class uvicorn.workers.UvicornWorker \
-    --bind 0.0.0.0:8000 \
-    --access-logfile ./logs/access.log \
-    --error-logfile ./logs/error.log \
-    --log-level info \
-    --timeout 1800 \
-    "app.main:app"
+# workers=1이 항상 필수이므로(플래너/job 상태가 프로세스 메모리에만 있음 — 위 주석 참고,
+# 이제는 DEPLOYMENT.md 참고) gunicorn의 다중 워커 관리가 애초에 필요 없다. GPU_ID를 설정한
+# 경우(GPU_ID != -1) gunicorn의 fork로 생성된 워커 프로세스 안에서 CUDA 초기화가
+# "No CUDA GPUs are available"로 실패하는 문제가 있어(WSL2 CUDA 패스스루 환경에서 재현,
+# 순수 uvicorn/단일 프로세스에서는 재현 안 됨) gunicorn 자체를 제거했다.
+exec python -m uvicorn app.main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --timeout-keep-alive 1800

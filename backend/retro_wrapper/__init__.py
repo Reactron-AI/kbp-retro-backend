@@ -8,9 +8,11 @@ from .planner import (
     init_planner,
     get_planner,
 )
+from .bb_price import lookup_prices
 
 __all__ = [
     'RetroStarPlanner',
     'init_planner',
     'get_planner',
+    'lookup_prices',
 ]

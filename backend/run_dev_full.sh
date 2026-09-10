@@ -50,16 +50,16 @@ fi
 
 echo "📥 Installing retro_star dependencies..."
 
-if [ -d "$PROJECT_ROOT/KBP-main/retro_star/packages/mlp_retrosyn" ]; then
+if [ -d "$PROJECT_ROOT/KBP-main/retro_star/retro_star/packages/mlp_retrosyn" ]; then
     echo "  Installing mlp_retrosyn..."
-    pip install -e "$PROJECT_ROOT/KBP-main/retro_star/packages/mlp_retrosyn"
+    pip install -e "$PROJECT_ROOT/KBP-main/retro_star/retro_star/packages/mlp_retrosyn"
 else
     echo "  ⚠️  mlp_retrosyn not found (optional)"
 fi
 
-if [ -d "$PROJECT_ROOT/KBP-main/retro_star/packages/rdchiral" ]; then
+if [ -d "$PROJECT_ROOT/KBP-main/retro_star/retro_star/packages/rdchiral" ]; then
     echo "  Installing rdchiral..."
-    pip install -e "$PROJECT_ROOT/KBP-main/retro_star/packages/rdchiral"
+    pip install -e "$PROJECT_ROOT/KBP-main/retro_star/retro_star/packages/rdchiral"
 else
     echo "  ⚠️  rdchiral not found (optional)"
 fi

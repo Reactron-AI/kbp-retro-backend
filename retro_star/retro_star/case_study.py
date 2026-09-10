@@ -102,7 +102,9 @@ def case_study_result_path(case_study_dir):
 
 def collect_unique_depth0_routes(planner, target_mol, case_study_dir,
                                   planner_name='', max_routes=100,
-                                  write_artifacts=True, exclude_smiles=None):
+                                  write_artifacts=True, exclude_smiles=None,
+                                  exclude_smiles_strict=None,
+                                  progress_callback=None):
     """
     Search for up to `max_routes` synthesis routes for `target_mol`, treating
     routes as distinct only if their first (depth-0) reaction differs. Writes
@@ -131,6 +133,8 @@ def collect_unique_depth0_routes(planner, target_mol, case_study_dir,
 
     search_idx = 0
     while len(routes) < max_routes:
+        if progress_callback:
+            progress_callback(len(routes), max_routes)
         current_search_idx = search_idx
         search_idx += 1
         succ, msg = planner.plan_raw(
@@ -141,7 +145,8 @@ def collect_unique_depth0_routes(planner, target_mol, case_study_dir,
             banned_reactions=banned_reactions,
             return_mol_tree=True,
             root_rank_start=root_rank_start,
-            exclude_smiles=exclude_smiles
+            exclude_smiles=exclude_smiles,
+            exclude_smiles_strict=exclude_smiles_strict
         )
         mol_tree = msg[2]
         root_expansion_metadata = getattr(
@@ -243,5 +248,8 @@ def collect_unique_depth0_routes(planner, target_mol, case_study_dir,
         'next_root_rank_start': root_rank_start,
         'stop_reason': stop_reason,
     }
+
+    if progress_callback:
+        progress_callback(len(routes), max_routes)
 
     return result

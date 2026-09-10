@@ -63,7 +63,8 @@ def prepare_molstar_planner(one_step, value_fn, starting_mols, expansion_topk,
                             root_keep_first_reaction=False):
     def plan_handle(x, y=0, viz_override=None, viz_dir_override=None,
                     banned_reactions=None, return_mol_tree=False,
-                    root_rank_start=None, exclude_smiles=None):
+                    root_rank_start=None, exclude_smiles=None,
+                    exclude_smiles_strict=None):
         effective_viz = viz if viz_override is None else viz_override
         effective_viz_dir = viz_dir if viz_dir_override is None else viz_dir_override
         banned_count = len(banned_reactions or [])
@@ -103,7 +104,8 @@ def prepare_molstar_planner(one_step, value_fn, starting_mols, expansion_topk,
             banned_reactions=banned_reactions,
             return_mol_tree=return_mol_tree,
             root_keep_first_reaction=root_keep_first_reaction,
-            exclude_smiles=exclude_smiles
+            exclude_smiles=exclude_smiles,
+            exclude_smiles_strict=exclude_smiles_strict
         )
 
     return plan_handle

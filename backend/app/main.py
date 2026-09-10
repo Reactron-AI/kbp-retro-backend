@@ -22,14 +22,24 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from .jobs import create_job, get_job, submit_job
+from .jobs import create_job, get_job, submit_job, update_progress
+from . import feedback_store
+from . import saved_store
 from .models import (
     RetrosynthesisPlanRequest,
     JobStatusResponse,
     JobSubmitResponse,
     StatusResponse,
+    BBPriceRequest,
+    BBPriceResponse,
+    ReactionFeedbackItem,
+    RouteFeedbackPatch,
+    ReagentFeedbackPatch,
+    FeedbackStoreResponse,
+    SavedPathwayItem,
+    SavedStoreResponse,
 )
-from retro_wrapper import RetroStarPlanner, init_planner, get_planner
+from retro_wrapper import RetroStarPlanner, init_planner, get_planner, lookup_prices
 
 # ─────────────────────────────────────────────────────────
 # 로깅 설정
@@ -250,7 +260,9 @@ async def plan_retrosynthesis(request: Request, body: RetrosynthesisPlanRequest)
         target_mol=body.target_mol,
         max_routes=body.max_routes,
         exclude_smiles=body.exclude_smiles,
+        exclude_smiles_strict=body.exclude_smiles_strict,
         include_smiles=body.include_smiles,
+        progress_cb=lambda found, total, _jid=job_id: update_progress(_jid, found, total),
     )
 
     return JobSubmitResponse(
@@ -271,6 +283,157 @@ async def get_job_status(job_id: str) -> JobStatusResponse:
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return JobStatusResponse(**job)
+
+
+# ─────────────────────────────────────────────────────────
+# 빌딩블록 가격 조회 엔드포인트
+# ─────────────────────────────────────────────────────────
+
+@app.post(
+    "/api/v1/bb-price",
+    response_model=BBPriceResponse,
+    tags=["Building Blocks"],
+    summary="빌딩블록 SMILES의 $/g 가격 조회 (bb_curation.csv 기반)",
+)
+@limiter.limit("30/minute")
+async def get_bb_prices(request: Request, body: BBPriceRequest) -> BBPriceResponse:
+    """
+    입력 SMILES마다 bb_curation.csv에서 조회한 $/g 가격을 반환한다.
+    목록에 없는 분자(구매처에서 안 파는 빌딩블록)는 null.
+    """
+    prices = lookup_prices(body.smiles)
+    return BBPriceResponse(prices=prices)
+
+
+# ─────────────────────────────────────────────────────────
+# 피드백 엔드포인트 (실현 가능성/선호도, 개별 반응, 시약/촉매/용매 평가)
+# ─────────────────────────────────────────────────────────
+# 브라우저 localStorage에만 있던 피드백은 캐시를 지우거나 다른 기기로 옮기면
+# 사라지는 문제가 있어서, 서버 파일(feedback_store.py, JSON)에도 실제로 저장한다.
+# localStorage는 오프라인/즉시 반영용 캐시로 남고, 여기가 여러 사람 것을 합치는
+# 실제 저장소다. GET은 전체를 합쳐서 돌려주고, 페이지 로드 시 그걸로
+# localStorage를 보강한다(route-feedback.js의 syncFromServer 참고).
+
+@app.get(
+    "/api/v1/feedback",
+    response_model=FeedbackStoreResponse,
+    tags=["Feedback"],
+    summary="전체 피드백 조회 (여러 브라우저/사용자 것을 합친 서버 저장본)",
+    dependencies=[Depends(require_api_key)],
+)
+async def get_feedback() -> FeedbackStoreResponse:
+    return FeedbackStoreResponse(**feedback_store.get_all())
+
+
+@app.post(
+    "/api/v1/feedback/reaction",
+    tags=["Feedback"],
+    summary="개별 반응(스텝) 평가 upsert",
+    dependencies=[Depends(require_api_key)],
+)
+@limiter.limit("120/minute")
+async def upsert_reaction_feedback(request: Request, body: ReactionFeedbackItem):
+    return feedback_store.upsert_reaction(body.model_dump())
+
+
+@app.delete(
+    "/api/v1/feedback/reaction/{item_id}",
+    tags=["Feedback"],
+    summary="개별 반응 평가 삭제",
+    dependencies=[Depends(require_api_key)],
+)
+async def delete_reaction_feedback(item_id: str):
+    if not feedback_store.delete_reaction(item_id):
+        raise HTTPException(status_code=404, detail="Feedback entry not found")
+    return {"deleted": item_id}
+
+
+@app.post(
+    "/api/v1/feedback/route",
+    tags=["Feedback"],
+    summary="경로 단위 실현 가능성/선호도 upsert (보낸 필드만 반영)",
+    dependencies=[Depends(require_api_key)],
+)
+@limiter.limit("120/minute")
+async def upsert_route_feedback(request: Request, body: RouteFeedbackPatch):
+    patch = body.model_dump(exclude={"pwId"}, exclude_unset=True)
+    return feedback_store.upsert_route(body.pwId, patch)
+
+
+@app.post(
+    "/api/v1/feedback/reagent",
+    tags=["Feedback"],
+    summary="시약/촉매/용매 후보 평가 upsert (보낸 필드만 반영)",
+    dependencies=[Depends(require_api_key)],
+)
+@limiter.limit("120/minute")
+async def upsert_reagent_feedback(request: Request, body: ReagentFeedbackPatch):
+    patch = body.model_dump(exclude={"pwId", "ck"}, exclude_unset=True)
+    return feedback_store.upsert_reagent(body.pwId, body.ck, patch)
+
+
+@app.delete(
+    "/api/v1/feedback",
+    tags=["Feedback"],
+    summary="전체 피드백 삭제 — 이 서버에 쌓인 모든 사람의 피드백이 지워진다 (주의)",
+    dependencies=[Depends(require_api_key)],
+)
+async def clear_all_feedback():
+    feedback_store.clear_all()
+    return {"cleared": True}
+
+
+# ─────────────────────────────────────────────────────────
+# 즐겨찾기(⭐ Saved Pathways) 엔드포인트
+# ─────────────────────────────────────────────────────────
+# feedback과 같은 이유로 서버 파일에도 저장한다: 브라우저 localStorage만 쓰면
+# 사이트의 Cloudflare Tunnel 주소가 바뀔 때(=origin 변경, 예: PC 재부팅) 이전에
+# 저장해둔 즐겨찾기가 안 보이게 된다. GET은 전체를 합쳐서 돌려주고, 페이지 로드
+# 시 그걸로 localStorage를 보강한다(route-feedback.js의 syncSavedFromServer 참고).
+
+@app.get(
+    "/api/v1/saved",
+    response_model=SavedStoreResponse,
+    tags=["Saved"],
+    summary="전체 즐겨찾기 조회 (여러 브라우저/사용자 것을 합친 서버 저장본)",
+    dependencies=[Depends(require_api_key)],
+)
+async def get_saved() -> SavedStoreResponse:
+    return SavedStoreResponse(saved=saved_store.get_all())
+
+
+@app.post(
+    "/api/v1/saved",
+    tags=["Saved"],
+    summary="즐겨찾기 경로 저장/갱신 (전체 스냅샷 upsert)",
+    dependencies=[Depends(require_api_key)],
+)
+@limiter.limit("60/minute")
+async def upsert_saved(request: Request, body: SavedPathwayItem):
+    return saved_store.upsert(body.id, body.data)
+
+
+@app.delete(
+    "/api/v1/saved/{pw_id}",
+    tags=["Saved"],
+    summary="즐겨찾기 경로 삭제",
+    dependencies=[Depends(require_api_key)],
+)
+async def delete_saved(pw_id: str):
+    if not saved_store.delete(pw_id):
+        raise HTTPException(status_code=404, detail="Saved pathway not found")
+    return {"deleted": pw_id}
+
+
+@app.delete(
+    "/api/v1/saved",
+    tags=["Saved"],
+    summary="전체 즐겨찾기 삭제 — 이 서버에 쌓인 모든 사람의 즐겨찾기가 지워진다 (주의)",
+    dependencies=[Depends(require_api_key)],
+)
+async def clear_all_saved():
+    saved_store.clear_all()
+    return {"cleared": True}
 
 
 # ─────────────────────────────────────────────────────────

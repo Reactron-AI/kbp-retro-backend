@@ -131,7 +131,8 @@ class RSPlanner:
 
     def plan_raw(self, target_mol, target_mol_id=0, viz=None, viz_dir=None,
                  banned_reactions=None, return_mol_tree=False,
-                 root_rank_start=None, exclude_smiles=None):
+                 root_rank_start=None, exclude_smiles=None,
+                 exclude_smiles_strict=None):
         return self.plan_handle(
             target_mol,
             target_mol_id,
@@ -140,7 +141,8 @@ class RSPlanner:
             banned_reactions=banned_reactions,
             return_mol_tree=return_mol_tree,
             root_rank_start=root_rank_start,
-            exclude_smiles=exclude_smiles
+            exclude_smiles=exclude_smiles,
+            exclude_smiles_strict=exclude_smiles_strict
         )
 
     def plan(self, target_mol):
@@ -208,7 +210,8 @@ class RSPlannerLocalRetro:
 
     def plan_raw(self, target_mol, target_mol_id=0, viz=None, viz_dir=None,
                  banned_reactions=None, return_mol_tree=False,
-                 root_rank_start=None, exclude_smiles=None):
+                 root_rank_start=None, exclude_smiles=None,
+                 exclude_smiles_strict=None):
         return self.plan_handle(
             target_mol,
             target_mol_id,
@@ -217,7 +220,8 @@ class RSPlannerLocalRetro:
             banned_reactions=banned_reactions,
             return_mol_tree=return_mol_tree,
             root_rank_start=root_rank_start,
-            exclude_smiles=exclude_smiles
+            exclude_smiles=exclude_smiles,
+            exclude_smiles_strict=exclude_smiles_strict
         )
 
     def plan(self, target_mol):
@@ -282,7 +286,8 @@ class RSPlannerInterRetro:
 
     def plan_raw(self, target_mol, target_mol_id=0, viz=None, viz_dir=None,
                  banned_reactions=None, return_mol_tree=False,
-                 root_rank_start=None, exclude_smiles=None):
+                 root_rank_start=None, exclude_smiles=None,
+                 exclude_smiles_strict=None):
         return self.plan_handle(
             target_mol,
             target_mol_id,
@@ -291,7 +296,8 @@ class RSPlannerInterRetro:
             banned_reactions=banned_reactions,
             return_mol_tree=return_mol_tree,
             root_rank_start=root_rank_start,
-            exclude_smiles=exclude_smiles
+            exclude_smiles=exclude_smiles,
+            exclude_smiles_strict=exclude_smiles_strict
         )
 
     def plan(self, target_mol):

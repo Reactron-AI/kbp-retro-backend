@@ -48,7 +48,7 @@ backend/
 ├── .env.example         # 환경 변수 템플릿
 ├── run_dev.sh           # 개발 서버 (conda activate kbp-backend)
 ├── run_dev_full.sh       # conda env부터 새로 만드는 완전 셋업
-├── run_prod.sh           # gunicorn 프로덕션 서버 (workers=1 고정)
+├── run_prod.sh           # 단일 프로세스 uvicorn 프로덕션 서버
 └── DEPLOYMENT.md
 ```
 
@@ -162,11 +162,16 @@ LOCALRETRO_CONFIG_PATH=../LocalRetro/data/config/default_config.json
 | 환경 | 명령어 | 비고 |
 |------|--------|------|
 | **개발** | `bash run_dev.sh` | `--reload`, conda activate만 함 |
-| **프로덕션** | `bash run_prod.sh` | gunicorn, **`--workers 1` 고정** |
+| **프로덕션** | `bash run_prod.sh` | 단일 프로세스 uvicorn (gunicorn 미사용) |
 
-`--workers 1`이 필수인 이유: planner 모델(수 GB)과 job 상태가 프로세스 메모리에만
-있다. 워커가 여러 개면 각자 모델을 따로 로드(메모리·시간 낭비)하고, job_id도 등록된
-워커에서만 조회 가능해져서 로드밸런서가 다른 워커로 보내면 404가 난다.
+단일 프로세스여야 하는 이유: planner 모델(수 GB)과 job 상태가 프로세스 메모리에만
+있다. 워커/프로세스가 여러 개면 각자 모델을 따로 로드(메모리·시간 낭비)하고, job_id도
+등록된 워커에서만 조회 가능해져서 로드밸런서가 다른 워커로 보내면 404가 난다.
+원래는 `gunicorn --workers 1 --worker-class uvicorn.workers.UvicornWorker`를 썼지만,
+`GPU_ID`를 CPU가 아닌 실제 GPU로 설정했을 때 gunicorn이 fork한 워커 프로세스 안에서
+`RuntimeError: No CUDA GPUs are available`가 재현되어(순수 uvicorn 단일 프로세스에서는
+재현 안 됨 — WSL2 CUDA 패스스루 환경에서 관찰) gunicorn을 완전히 뺐다. 워커가 애초에
+1개 고정이라 gunicorn이 주는 이점(다중 워커 관리) 자체가 필요 없었다.
 
 ---
 

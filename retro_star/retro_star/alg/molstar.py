@@ -8,13 +8,15 @@ from retro_star.route_utils import reaction_key
 def molstar(target_mol, target_mol_id, starting_mols, expand_fn, value_fn,
             iterations, viz=False, viz_dir=None, banned_reactions=None,
             return_mol_tree=False, root_keep_first_reaction=False,
-            exclude_smiles=None):
+            exclude_smiles=None, exclude_smiles_strict=None):
     banned_reactions = set(banned_reactions or [])
+    strict_banned_mols = set(exclude_smiles_strict or [])
     mol_tree = MolTree(
         target_mol=target_mol,
         known_mols=starting_mols,
         value_fn=value_fn,
-        exclude_mols=exclude_smiles
+        # exclude_smiles_strict은 재고 취급도 막아야 하므로 exclude_smiles와 합쳐서 전달
+        exclude_mols=set(exclude_smiles or []) | strict_banned_mols
     )
     mol_tree.root_expansion_metadata = {}
 
@@ -74,6 +76,10 @@ def molstar(target_mol, target_mol_id, starting_mols, expand_fn, value_fn,
                 for j in range(len(scores)):
                     reactant_list = list(set(reactants[j].split('.')))
                     if reaction_key(m_next.mol, reactant_list) in banned_reactions:
+                        continue
+                    # exclude_smiles_strict: 재고 취급 여부와 무관하게, 이 분자를
+                    # 중간체(reactant)로도 만들어내는 반응 자체를 후보에서 제외한다.
+                    if strict_banned_mols and strict_banned_mols.intersection(reactant_list):
                         continue
                     reactant_lists.append(reactant_list)
                     kept_costs.append(costs[j])

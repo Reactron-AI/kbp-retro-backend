@@ -4,10 +4,11 @@ Retro* Planning Wrapper for Web API
 - plan() 메서드로 타겟 분자 처리 (example.py와 동일한 다중 unique-route 탐색)
 """
 
+import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 # Add retro_star to path
 RETRO_STAR_PATH = Path(__file__).parent.parent.parent / 'retro_star'
@@ -113,6 +114,13 @@ class RetroStarPlanner:
         sys.argv = [sys.argv[0]]
         from retro_star.api import RSPlanner, RSPlannerInterRetro, RSPlannerLocalRetro
 
+        # retro_star.common.parse_args가 위 import의 부작용으로 argparse 기본값
+        # (--gpu 기본값 -1)을 기준으로 os.environ['CUDA_VISIBLE_DEVICES']를 이미
+        # 덮어썼다 (sys.argv를 비웠으니 항상 기본값 -1). 이 시점까지 CUDA는 아직
+        # 한 번도 실제로 초기화되지 않았으므로(지연 초기화) 여기서 우리가 받은
+        # gpu 값으로 다시 설정하면 이후의 실제 모델 로딩(.to(device))에 반영된다.
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if gpu is not None and gpu >= 0 else ''
+
         # example.py의 _build_planner와 동일한 옵션: 첫 반응(depth-0)을 매 호출마다
         # 다르게 탐색해서 collect_unique_depth0_routes가 중복 없는 경로를 모을 수 있게 한다.
         common_kwargs = {
@@ -157,7 +165,9 @@ class RetroStarPlanner:
         target_mol: str,
         max_routes: int = 20,
         exclude_smiles: Optional[List[str]] = None,
+        exclude_smiles_strict: Optional[List[str]] = None,
         include_smiles: Optional[List[str]] = None,
+        progress_cb: Optional[Callable[[int, int], None]] = None,
     ) -> Dict[str, Any]:
         """
         타겟 분자에 대해 example.py와 동일한 다중 unique-route 탐색을 실행한다.
@@ -169,11 +179,24 @@ class RetroStarPlanner:
             exclude_smiles: 이번 탐색에서만 "이미 확보된 물질" 취급을 하지 않을
                 SMILES 목록 — 검색이 이 분자들을 더 분해하거나(가능하면) 아예
                 실패하도록 만든다 (banned_reactions와 동일하게 매 호출마다
-                새로 전달되는 파라미터).
+                새로 전달되는 파라미터). 단, 이 분자가 재고에 없는 진짜
+                중간체라면 원래도 "이미 확보된 물질"이 아니었으므로 아무
+                효과가 없다 — building block 전용 exclude.
+            exclude_smiles_strict: exclude_smiles와 달리, 이 분자들을 재고
+                취급하지 않는 것은 물론 route의 어느 위치(중간체 포함)에도
+                등장하지 못하도록 그 분자를 만들어내는 반응 후보 자체를
+                차단한다. building block이든 중간체든 상관없이 "이 물질은
+                절대 이번 route에 쓰지 않는다"는 제약.
             include_smiles: 이번 탐색 결과 중 이 분자들을 포함하는 route를
                 앞쪽으로 정렬해주는, 탐색 이후 후처리 힌트. 실제 탐색이 이
                 분자를 반드시 지나가도록 강제하지는 않는다 (single-target
                 best-first MCTS에는 그런 lookahead 메커니즘이 없음).
+            progress_cb: collect_unique_depth0_routes()가 매 depth-0 탐색
+                시도 시작 시 (지금까지 확보한 unique route 수, max_routes)로
+                호출하는 콜백. job 상태에 진행률을 반영하는 용도 — 실제 탐색
+                총량(중복/실패로 버려지는 시도 수)은 미리 알 수 없으므로
+                정확한 %가 아니라 "확보한 route 수 / 목표 route 수" 기준의
+                근사치다.
 
         Returns:
             collect_unique_depth0_routes()의 결과 dict + 'success'/'time' 필드.
@@ -193,6 +216,8 @@ class RetroStarPlanner:
                 planner_name=self.planner_model,
                 max_routes=max_routes,
                 exclude_smiles=exclude_smiles,
+                exclude_smiles_strict=exclude_smiles_strict,
+                progress_callback=progress_cb,
             )
             result['success'] = len(result['routes']) > 0
             result['time'] = time.time() - start_time
